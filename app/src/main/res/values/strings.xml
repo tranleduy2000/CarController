@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">CarController</string>
+    <string name="message_bluetooth_not_avaiable">Bluetooth is not available on this device.</string>
+    <string name="select_device">Select device</string>
+</resources>
