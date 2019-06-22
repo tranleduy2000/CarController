@@ -24,6 +24,7 @@ import com.duy.adruino.car.controller.Direction;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Set;
 
 import io.github.controlwear.virtual.joystick.android.JoystickView;
 
@@ -37,6 +38,13 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
     private JoystickView joystickView;
     private TextView txtSpeed;
     private TextView txtDirection;
+    @Nullable
+    private MenuItem connectMenuItem;
+
+    @Nullable
+    private String previousDirectionCommand;
+    @Nullable
+    private String previousSpeedCommand;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +52,7 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
         setContentView(R.layout.activity_main);
 
         setupView();
+        tryToConnectWithPreviousDevice();
     }
 
     private void setupView() {
@@ -58,24 +67,140 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
             @Override
             public void onMove(int angle, int strength) {
                 updateControllerUI(angle, strength);
+                sendDirectionCommand(angle, strength);
+                sendSpeedCommand(strength);
             }
         }, 17);
     }
 
+    private void sendSpeedCommand(int strength) {
+        int mappedValue = (int) (strength / 100.0f * 255);
+        String speedCommand = "V " + mappedValue;
+        if (speedCommand.equals(previousSpeedCommand)) {
+            Log.d(TAG, "Duplicate command " + speedCommand);
+            return;
+        }
+        previousSpeedCommand = speedCommand;
+
+        if (DLog.DEBUG) {
+            DLog.d(TAG, "sendSpeedCommand() called with: direction = [" + speedCommand + "]");
+        }
+
+        if (bluetoothCommunicator != null) {
+            try {
+                bluetoothCommunicator.write(speedCommand + ";");
+            } catch (IOException e) {
+                e.printStackTrace();
+                onReceivedNewMessage(new Message(Message.Type.OUT, e.getMessage()));
+            }
+        }
+    }
+
+    private void tryToConnectWithPreviousDevice() {
+        if (DLog.DEBUG) {
+            DLog.d(TAG, "tryToConnectWithPreviousDevice() called");
+        }
+
+        String address = AppSettings.getLastConnectedDevice(this);
+        BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        Set<BluetoothDevice> bondedDevices = bluetoothAdapter.getBondedDevices();
+        BluetoothDevice connectedDevice
+                = bondedDevices.stream().filter(device -> device.getAddress().equals(address)).findFirst().orElse(null);
+        if (connectedDevice != null) {
+            this.connectBluetoothWith(connectedDevice);
+
+            onReceivedNewMessage(new Message(Message.Type.OUT,
+                    "tryToConnectWithPreviousDevice "
+                            + connectedDevice.getName() + " - " + connectedDevice.getAddress()));
+        }
+
+    }
+
     @SuppressLint("SetTextI18n")
     private void updateControllerUI(int angle, int strength) {
-        Direction direction = Direction.getDirection(angle);
-        Log.d(TAG, "direction = " + direction);
-        Log.d(TAG, "strength = " + strength);
+        Direction direction;
+        if (strength == 0) {
+            direction = Direction.NONE;
+        } else {
+            direction = Direction.getDirection(angle);
+        }
 
         txtSpeed.setText("Speed: " + strength);
         txtDirection.setText("Direction: " + direction);
 
     }
 
+    private void sendDirectionCommand(int angle, int strength) {
+
+        Direction direction;
+        if (strength == 0) {
+            direction = Direction.NONE;
+        } else {
+            direction = Direction.getDirection(angle);
+        }
+
+        if (direction == Direction.TOP_LEFT) {
+            direction = Direction.LEFT;
+        } else if (direction == Direction.LEFT_BOTTOM) {
+            direction = Direction.LEFT;
+        }else if (direction == Direction.TOP_RIGHT) {
+            direction = Direction.RIGHT;
+        } else if (direction == Direction.RIGHT_BOTTOM) {
+            direction = Direction.RIGHT;
+        }
+
+        String directionCommand = direction.getArduinoCommand();
+        if (directionCommand.equals(previousDirectionCommand)) {
+            Log.d(TAG, "Duplicate command " + directionCommand);
+            return;
+        }
+        previousDirectionCommand = directionCommand;
+
+        if (DLog.DEBUG) {
+            DLog.d(TAG, "sendCommand() called with: direction = [" + direction + "]");
+        }
+
+        if (bluetoothCommunicator != null) {
+            try {
+                bluetoothCommunicator.write(directionCommand + ";");
+            } catch (IOException e) {
+                e.printStackTrace();
+                onReceivedNewMessage(new Message(Message.Type.OUT, e.getMessage()));
+            }
+        }
+    }
+
+    private void connectBluetoothWith(BluetoothDevice device) {
+        //update UI
+        onReceivedNewMessage(new Message(Message.Type.OUT, "Connecting with device " + device));
+        if (connectMenuItem != null) {
+            connectMenuItem.setIcon(R.drawable.baseline_bluetooth_searching_24);
+        }
+
+        try {
+            bluetoothCommunicator = new BluetoothCommunicator(device, this);
+            bluetoothCommunicator.connect();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        try {
+            if (bluetoothCommunicator != null) {
+                bluetoothCommunicator.disconnect();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        super.onDestroy();
+    }
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main_menu, menu);
+        connectMenuItem = menu.findItem(R.id.action_connect);
         return super.onCreateOptionsMenu(menu);
     }
 
@@ -120,58 +245,35 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
         builder.create().show();
     }
 
-    private void connectBluetoothWith(BluetoothDevice device) {
-        //update UI
-        onReceivedNewMessage(new Message(Message.Type.OUT, "Connecting with device " + device));
-
-        try {
-            bluetoothCommunicator = new BluetoothCommunicator(device, this);
-            bluetoothCommunicator.connect();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void tryToConnectWithPreviousDevice() {
-//        if (DLog.DEBUG) {
-//            DLog.d(TAG, "tryToConnectWithPreviousDevice() called");
-//        }
-//
-//
-//        String address = AppSettings.getLastConnectedDevice(this);
-//        BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-//        Set<BluetoothDevice> bondedDevices = bluetoothAdapter.getBondedDevices();
-//        BluetoothDevice connectedDevice
-//                = bondedDevices.stream().filter(device -> device.getAddress().equals(address)).findFirst().orElse(null);
-//        if (connectedDevice != null) {
-//            this.connectBluetoothWith(connectedDevice);
-//
-//            onNewMessage(new MessageItem(MessageItem.TYPE_OUT, "tryToConnectWithPreviousDevice "
-//                    + connectedDevice.getName() + " - " + connectedDevice.getAddress()));
-//        }
-
-    }
-
     @Override
     public void onConnected(@NonNull BluetoothSocket socket) {
         onReceivedNewMessage(new Message(Message.Type.OUT, "LOCAL: connected with socket " + socket));
+        if (connectMenuItem != null) {
+            connectMenuItem.setIcon(R.drawable.baseline_bluetooth_connected_24);
+        }
     }
 
     @Override
     public void onConnectFailed(@Nullable Exception error) {
         Message message = new Message(Message.Type.ERROR, error == null ? "Unknown error" : error.getMessage());
         onReceivedNewMessage(message);
+        if (connectMenuItem != null) {
+            connectMenuItem.setIcon(R.drawable.baseline_bluetooth_disabled_24);
+        }
     }
 
     @Override
     public void onDisconnected() {
         onReceivedNewMessage(new Message(Message.Type.OUT, "LOCAL: Disconnected"));
-
+        if (connectMenuItem != null) {
+            connectMenuItem.setIcon(R.drawable.baseline_bluetooth_disabled_24);
+        }
     }
 
     @Override
     public void onReceivedNewMessage(@NonNull Message message) {
-
-
+        if (DLog.DEBUG) {
+            DLog.d(TAG, "onReceivedNewMessage() called with: message = [" + message + "]");
+        }
     }
 }
