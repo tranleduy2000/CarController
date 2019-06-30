@@ -1,14 +1,14 @@
 package com.duy.adruino.car.controller;
 
 public enum Direction {
-    RIGHT(0, 45f, "R"),
-    TOP_RIGHT(45f, 90.0f, "TR"),
-    TOP(90.0f, 135.0f, "T"),
-    TOP_LEFT(135.0f, 180.0f, "TL"),
-    LEFT(180.0f, 225.0f, "L"),
-    LEFT_BOTTOM(225.0f, 270.0f, "LB"),
-    BOTTOM(270.0f, 315.0f, "B"),
-    RIGHT_BOTTOM(315.0f, 360.0f, "RB"),
+    RIGHT(-45, 45, "R"),
+//    TOP_RIGHT(45f, 90.0f, "TR"),
+    TOP(45, 135, "T"),
+//    TOP_LEFT(135.0f, 180.0f, "TL"),
+    LEFT(135, 225, "L"),
+//    LEFT_BOTTOM(225.0f, 270.0f, "LB"),
+    BOTTOM(225, 315, "B"),
+//    RIGHT_BOTTOM(315.0f, 360.0f, "RB"),
     NONE(-1, -1, "S"),
     ;
 

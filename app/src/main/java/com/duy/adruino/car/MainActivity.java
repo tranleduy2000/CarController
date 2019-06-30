@@ -7,8 +7,10 @@ import android.bluetooth.BluetoothSocket;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.UiThread;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
@@ -20,9 +22,9 @@ import android.widget.Toast;
 import com.duy.adruino.car.connection.BluetoothCommunicator;
 import com.duy.adruino.car.connection.IConnectionListener;
 import com.duy.adruino.car.connection.Message;
+import com.duy.adruino.car.connection.CommandCache;
 import com.duy.adruino.car.controller.Direction;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Set;
 
@@ -32,19 +34,17 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
 
     private static final int RC_ENABLE_BLUETOOTH = 567;
     private static final String TAG = "MainActivity";
+    private final Handler handler = new Handler();
     @Nullable
     private BluetoothCommunicator bluetoothCommunicator;
-
     private JoystickView joystickView;
     private TextView txtSpeed;
     private TextView txtDirection;
     @Nullable
     private MenuItem connectMenuItem;
 
-    @Nullable
-    private String previousDirectionCommand;
-    @Nullable
-    private String previousSpeedCommand;
+    private CommandCache speedCommandSender = new CommandCache(100);
+    private CommandCache directionCommandSender = new CommandCache(100);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,6 +53,18 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
 
         setupView();
         tryToConnectWithPreviousDevice();
+    }
+
+    @Override
+    protected void onDestroy() {
+        try {
+            if (bluetoothCommunicator != null) {
+                bluetoothCommunicator.disconnect();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        super.onDestroy();
     }
 
     private void setupView() {
@@ -76,26 +88,13 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
     private void sendSpeedCommand(int strength) {
         int mappedValue = (int) (strength / 100.0f * 255);
         String speedCommand = "V " + mappedValue;
-        if (speedCommand.equals(previousSpeedCommand)) {
-            Log.d(TAG, "Duplicate command " + speedCommand);
-            return;
-        }
-        previousSpeedCommand = speedCommand;
-
-        if (DLog.DEBUG) {
-            DLog.d(TAG, "sendSpeedCommand() called with: direction = [" + speedCommand + "]");
-        }
-
         if (bluetoothCommunicator != null) {
-            try {
-                bluetoothCommunicator.write(speedCommand + ";");
-            } catch (IOException e) {
-                e.printStackTrace();
-                onReceivedNewMessage(new Message(Message.Type.OUT, e.getMessage()));
-            }
+            this.speedCommandSender.send(speedCommand, bluetoothCommunicator, handler, this);
         }
+
     }
 
+    @UiThread
     private void tryToConnectWithPreviousDevice() {
         if (DLog.DEBUG) {
             DLog.d(TAG, "tryToConnectWithPreviousDevice() called");
@@ -116,6 +115,7 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
 
     }
 
+    @UiThread
     @SuppressLint("SetTextI18n")
     private void updateControllerUI(int angle, int strength) {
         Direction direction;
@@ -130,6 +130,7 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
 
     }
 
+    @UiThread
     private void sendDirectionCommand(int angle, int strength) {
 
         Direction direction;
@@ -139,34 +140,9 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
             direction = Direction.getDirection(angle);
         }
 
-        if (direction == Direction.TOP_LEFT) {
-            direction = Direction.LEFT;
-        } else if (direction == Direction.LEFT_BOTTOM) {
-            direction = Direction.LEFT;
-        }else if (direction == Direction.TOP_RIGHT) {
-            direction = Direction.RIGHT;
-        } else if (direction == Direction.RIGHT_BOTTOM) {
-            direction = Direction.RIGHT;
-        }
-
-        String directionCommand = direction.getArduinoCommand();
-        if (directionCommand.equals(previousDirectionCommand)) {
-            Log.d(TAG, "Duplicate command " + directionCommand);
-            return;
-        }
-        previousDirectionCommand = directionCommand;
-
-        if (DLog.DEBUG) {
-            DLog.d(TAG, "sendCommand() called with: direction = [" + direction + "]");
-        }
-
+        String command = direction.getArduinoCommand();
         if (bluetoothCommunicator != null) {
-            try {
-                bluetoothCommunicator.write(directionCommand + ";");
-            } catch (IOException e) {
-                e.printStackTrace();
-                onReceivedNewMessage(new Message(Message.Type.OUT, e.getMessage()));
-            }
+            directionCommandSender.send(command, bluetoothCommunicator, handler, this);
         }
     }
 
@@ -177,24 +153,8 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
             connectMenuItem.setIcon(R.drawable.baseline_bluetooth_searching_24);
         }
 
-        try {
-            bluetoothCommunicator = new BluetoothCommunicator(device, this);
-            bluetoothCommunicator.connect();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    @Override
-    protected void onDestroy() {
-        try {
-            if (bluetoothCommunicator != null) {
-                bluetoothCommunicator.disconnect();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        super.onDestroy();
+        bluetoothCommunicator = new BluetoothCommunicator(device, this);
+        bluetoothCommunicator.connect();
     }
 
     @Override

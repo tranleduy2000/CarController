@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.WorkerThread;
 import android.util.Log;
 
 import java.io.BufferedReader;
@@ -54,6 +55,7 @@ public class BluetoothCommunicator extends Thread implements IConnector, IConnec
         }
     }
 
+    @WorkerThread
     @Override
     public void write(String message) throws IOException {
         Log.d(TAG, "write() called with: message = [" + message + "]");
@@ -70,7 +72,7 @@ public class BluetoothCommunicator extends Thread implements IConnector, IConnec
     }
 
     @Override
-    public void connect() throws IOException {
+    public void connect() {
         if (connecting) {
             Log.d(TAG, "connect: Bluetooth is connecting");
             return;
@@ -166,6 +168,7 @@ public class BluetoothCommunicator extends Thread implements IConnector, IConnec
         }
     }
 
+    @WorkerThread
     @Override
     public void onReceivedNewMessage(@NonNull Message message) {
         if (listener != null) {
