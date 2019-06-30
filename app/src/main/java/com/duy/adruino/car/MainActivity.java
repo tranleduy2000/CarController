@@ -237,6 +237,8 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
                 BluetoothDevice toBeConnect = bondedDevices[which];
                 Log.d(TAG, "toBeConnect = " + toBeConnect);
 
+                AppSettings.setLastConnectedDevice(MainActivity.this, toBeConnect.getAddress());
+
                 connectBluetoothWith(toBeConnect);
 
                 dialog.cancel();
