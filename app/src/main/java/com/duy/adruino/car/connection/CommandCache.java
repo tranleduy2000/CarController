@@ -1,6 +1,5 @@
 package com.duy.adruino.car.connection;
 
-import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
@@ -21,7 +20,8 @@ public class CommandCache {
     }
 
     public void send(@NonNull String command, @NonNull IConnector connector,
-                     @NonNull Handler handler, @Nullable IConnectionListener listener) {
+                     @Nullable IConnectionListener listener) {
+
         if (System.currentTimeMillis() - previousTime < interval) {
             return;
         }
@@ -36,7 +36,7 @@ public class CommandCache {
 
         previousCommand = command;
 
-        handler.post(new Runnable() {
+        new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
@@ -48,6 +48,6 @@ public class CommandCache {
                     }
                 }
             }
-        });
+        }).start();
     }
 }

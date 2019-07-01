@@ -7,7 +7,6 @@ import android.bluetooth.BluetoothSocket;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.UiThread;
@@ -20,9 +19,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.duy.adruino.car.connection.BluetoothCommunicator;
+import com.duy.adruino.car.connection.CommandCache;
 import com.duy.adruino.car.connection.IConnectionListener;
 import com.duy.adruino.car.connection.Message;
-import com.duy.adruino.car.connection.CommandCache;
 import com.duy.adruino.car.controller.Direction;
 
 import java.util.Arrays;
@@ -34,7 +33,6 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
 
     private static final int RC_ENABLE_BLUETOOTH = 567;
     private static final String TAG = "MainActivity";
-    private final Handler handler = new Handler();
     @Nullable
     private BluetoothCommunicator bluetoothCommunicator;
     private JoystickView joystickView;
@@ -43,8 +41,8 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
     @Nullable
     private MenuItem connectMenuItem;
 
-    private CommandCache speedCommandSender = new CommandCache(100);
-    private CommandCache directionCommandSender = new CommandCache(100);
+    private CommandCache speedCommandSender = new CommandCache(30);
+    private CommandCache directionCommandSender = new CommandCache(0);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,7 +50,10 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
         setContentView(R.layout.activity_main);
 
         setupView();
-        tryToConnectWithPreviousDevice();
+
+        if (bluetoothCommunicator == null) {
+            tryToConnectWithPreviousDevice();
+        }
     }
 
     @Override
@@ -89,7 +90,7 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
         int mappedValue = (int) (strength / 100.0f * 255);
         String speedCommand = "V " + mappedValue;
         if (bluetoothCommunicator != null) {
-            this.speedCommandSender.send(speedCommand, bluetoothCommunicator, handler, this);
+            this.speedCommandSender.send(speedCommand, bluetoothCommunicator, this);
         }
 
     }
@@ -142,7 +143,7 @@ public class MainActivity extends AppCompatActivity implements IConnectionListen
 
         String command = direction.getArduinoCommand();
         if (bluetoothCommunicator != null) {
-            directionCommandSender.send(command, bluetoothCommunicator, handler, this);
+            directionCommandSender.send(command, bluetoothCommunicator, this);
         }
     }
 
